@@ -47,8 +47,7 @@ void decode(const char* infile, const char* outfile) {
   }
 
   struct qoi_header qoiHeader;
-  size_t read = fread(&qoiHeader, headerSize, 1, file);
-  if (read != 1) {
+  if (fread(&qoiHeader, headerSize, 1, file) != 1) {
     printf("Could not read fileheader\n");
     return;
   }
@@ -75,19 +74,17 @@ void decode(const char* infile, const char* outfile) {
   size_t pixelIndex = 0;
   while (fread(&tagByte, 1, 1, file) == 1) {
     struct rgba curr = prev;
-    if (pixelIndex < 600) {
-      printf("%lu 0x%02X %u %u %u %u\n",pixelIndex, tagByte, curr.r, curr.g, curr.b, curr.a);
-    }
     if (tagByte == QOI_OP_RGB) {
       size_t read = 0;
       read += fread(&curr.r, 1, 1, file);
       read += fread(&curr.g, 1, 1, file);
       read += fread(&curr.b, 1, 1, file);
       if (read != 3) {
-        printf("QOI_OP_RGBA read failed...\n");
+        printf("QOI_OP_RGB read failed...\n");
         break;
       }
     } else if (tagByte == QOI_OP_RGBA) {
+      size_t read = 0;
       read += fread(&curr.r, 1, 1, file);
       read += fread(&curr.g, 1, 1, file);
       read += fread(&curr.b, 1, 1, file);
@@ -147,8 +144,14 @@ void decode(const char* infile, const char* outfile) {
 
 int main(int argc, char** argv) {
   printf("\n");
-  // decode("./original_qoi/edgecase.qoi", "file.png");
-  decode("./original_qoi/kodim23.qoi", "file.png");
+  // decode("./original_qoi/dice.qoi", "file.png");
+  decode("./original_qoi/edgecase.qoi", "file.png");
+  // decode("./original_qoi/kodim10.qoi", "file.png");
+  // decode("./original_qoi/kodim23.qoi", "file.png");
+  // decode("./original_qoi/qoi_logo.qoi", "file.png");
+  // decode("./original_qoi/testcard_rgba.qoi", "file.png");
+  // decode("./original_qoi/testcard.qoi", "file.png");
+  // decode("./original_qoi/wikipedia_008.qoi", "file.png");
   printf("\n");
 
   return 0;
