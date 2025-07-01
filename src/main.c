@@ -25,6 +25,9 @@ struct rgba {
   uint8_t a;
 };
 
+// 64-bit end chunk (format specified, not needed for decoding)
+const uint64_t QOI_END_CHUNK = 0x0000000000000001;
+
 // 8-bit tags
 const uint8_t QOI_OP_RGB = 0b11111110; // this, R byte, G byte, B byte
 const uint8_t QOI_OP_RGBA = 0b11111111; // this, R byte, G byte, B byte, A byte
@@ -61,8 +64,9 @@ void decode(const char* infile, const char* outfile) {
 
   printf("QOI w:%u h:%u channels:%u color:%u\n", qoiHeader.width, qoiHeader.height, qoiHeader.channels, qoiHeader.colorspace);
 
-  printf("Reserving %u bytes for the image.\n", qoiHeader.height * qoiHeader.width * 4);
-  uint8_t* imageData = malloc(qoiHeader.height * qoiHeader.width * 4);
+  size_t totalValues = qoiHeader.height * qoiHeader.width * 4;
+  printf("Reserving %u bytes for the image.\n", totalValues);
+  uint8_t* imageData = malloc(totalValues);
   if (imageData == NULL) {
     printf("Not enough memory for the image!\n");
     return;
@@ -72,7 +76,7 @@ void decode(const char* infile, const char* outfile) {
   struct rgba prev = {0, 0, 0, 255};
   uint8_t tagByte;
   size_t pixelIndex = 0;
-  while (fread(&tagByte, 1, 1, file) == 1) {
+  while (pixelIndex < totalValues && fread(&tagByte, 1, 1, file) == 1) {
     struct rgba curr = prev;
     if (tagByte == QOI_OP_RGB) {
       size_t read = 0;
@@ -137,6 +141,19 @@ void decode(const char* infile, const char* outfile) {
     imageData[pixelIndex++] = curr.a;
   }
 
+  // Sanity check end chunk (unnecessary for decoding)
+  uint64_t qoiEnd;
+  if (fread(&qoiEnd, sizeof(uint64_t), 1, file) != 1) {
+    printf("Decoded qoi has missing or partially missing end chunk!\n");
+  }
+  qoiEnd = __builtin_bswap64(qoiEnd);
+  if (qoiEnd != QOI_END_CHUNK) {
+    printf("Decoded qoi has incorrect end chunk %lX\n", qoiEnd);
+  }
+
+  if (pixelIndex != totalValues) {
+    printf("Missing data, partially decoded!\n");
+  }
   stbi_write_png(outfile, qoiHeader.width, qoiHeader.height, 4, imageData, qoiHeader.width * 4);
 
   free(imageData);
