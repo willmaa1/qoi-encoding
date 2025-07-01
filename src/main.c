@@ -43,7 +43,7 @@ uint8_t getIndex(struct rgba rbgaStruct) {
 }
 
 void decode(const char* infile, const char* outfile) {
-  FILE* file = fopen(infile, "r");
+  FILE* file = fopen(infile, "rb");
   if (file == NULL) {
     printf("FILE NOT FOUND\n");
     return;
@@ -65,7 +65,7 @@ void decode(const char* infile, const char* outfile) {
   printf("QOI w:%u h:%u channels:%u color:%u\n", qoiHeader.width, qoiHeader.height, qoiHeader.channels, qoiHeader.colorspace);
 
   size_t totalValues = qoiHeader.height * qoiHeader.width * 4;
-  printf("Reserving %u bytes for the image.\n", totalValues);
+  printf("Reserving %lu bytes for the image.\n", totalValues);
   uint8_t* imageData = malloc(totalValues);
   if (imageData == NULL) {
     printf("Not enough memory for the image!\n");
@@ -159,16 +159,93 @@ void decode(const char* infile, const char* outfile) {
   free(imageData);
 }
 
+void encode(const char* infile, const char* outfile) {
+  int width;
+  int height;
+  int channels;
+  if(!stbi_info(infile, &width, &height, &channels)) {
+    printf("Cannot read image info from infile %s.\n", infile);
+    return;
+  }
+
+  if(channels != 3) {
+    channels = 4;
+  }
+
+  uint8_t* pixels = (uint8_t *)stbi_load(infile, &width, &height, NULL, channels);
+
+  if (pixels == NULL) {
+    printf("Couldn't load image file.\n");
+    return;
+  }
+
+  FILE* file = fopen(outfile, "wb");
+  if (file == NULL) {
+    printf("FILE NOT FOUND\n");
+    return;
+  }
+
+  // TODO: now all images are marked as sRGB. Enable linear rgb
+  const uint8_t colorspace = 1;
+  struct qoi_header qoiHeader = {"qoif", width, height, channels, colorspace};
+
+  size_t totalValues = ((size_t)qoiHeader.width) * qoiHeader.height * qoiHeader.channels;
+  printf("Width %u height %u channels %u (%lu).\n", qoiHeader.width, qoiHeader.height, channels, totalValues);
+
+  uint32_t widthBE = __builtin_bswap32(qoiHeader.width);
+  uint32_t heightBE = __builtin_bswap32(qoiHeader.height);
+  fwrite(&qoiHeader.magic, 4, 1, file);
+  fwrite(&widthBE, 4, 1, file);
+  fwrite(&heightBE, 4, 1, file);
+  fwrite(&channels, 1, 1, file);
+  fwrite(&qoiHeader.colorspace, 1, 1, file);
+
+  // Super dumb encoder.
+  // Simply stores the rgb(a) values of each pixel
+  size_t pixelIndex = 0;
+  while (pixelIndex < totalValues) {
+    if (channels == 3) {
+      fwrite(&QOI_OP_RGB, 1, 1, file);
+    } else {
+      fwrite(&QOI_OP_RGBA, 1, 1, file);
+    }
+    fwrite(pixels + pixelIndex++, 1, 1, file);
+    fwrite(pixels + pixelIndex++, 1, 1, file);
+    fwrite(pixels + pixelIndex++, 1, 1, file);
+    if (channels == 4) {
+      fwrite(pixels + pixelIndex++, 1, 1, file);
+    }
+  }
+  
+  uint64_t endChunkBE = __builtin_bswap64(QOI_END_CHUNK);
+  fwrite(&endChunkBE, 8, 1, file);
+
+  fclose(file);
+
+  free(pixels);
+}
+
 int main(int argc, char** argv) {
   printf("\n");
   // decode("./original_qoi/dice.qoi", "file.png");
-  decode("./original_qoi/edgecase.qoi", "file.png");
+  // decode("./original_qoi/edgecase.qoi", "file.png");
   // decode("./original_qoi/kodim10.qoi", "file.png");
   // decode("./original_qoi/kodim23.qoi", "file.png");
   // decode("./original_qoi/qoi_logo.qoi", "file.png");
   // decode("./original_qoi/testcard_rgba.qoi", "file.png");
   // decode("./original_qoi/testcard.qoi", "file.png");
   // decode("./original_qoi/wikipedia_008.qoi", "file.png");
+  
+  // encode("./original_png/dice.png", "file.qoi");
+  encode("./original_png/edgecase.png", "file.qoi");
+  // encode("./original_png/kodim10.png", "file.qoi");
+  // encode("./original_png/kodim23.png", "file.qoi");
+  // encode("./original_png/qoi_logo.png", "file.qoi");
+  // encode("./original_png/testcard_rgba.png", "file.qoi");
+  // encode("./original_png/testcard.png", "file.qoi");
+  // encode("./original_png/wikipedia_008.png", "file.qoi");
+
+  decode("./file.qoi", "file.png");
   printf("\n");
 
   return 0;
