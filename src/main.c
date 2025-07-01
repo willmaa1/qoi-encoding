@@ -217,6 +217,38 @@ void encode(const char* infile, const char* outfile) {
     }
   }
   
+  // Smarter encoder.
+  // struct rgba runningArray[64];
+  // struct rgba prev = {0, 0, 0, 255};
+  // size_t pixelIndex = 0;
+  // while (pixelIndex < totalValues) {
+  //   struct rgba curr = {*(pixels + pixelIndex++),
+  //     *(pixels + pixelIndex++),
+  //     *(pixels + pixelIndex++),
+  //     channels == 4 ? *(pixels + pixelIndex++) : 255
+  //   };
+  //   uint8_t arrIndex = getIndex(curr);
+  //   struct rgba arrPix = runningArray[arrIndex];
+  //   if (memcmp(&arrPix, &curr, sizeof(struct rgba)) == 0) {
+  //     arrIndex &= QOI_OP_INDEX;
+  //     fwrite(&arrIndex, 1, 1, file);
+  //     continue;
+  //   }
+  //   if (channels == 3) {
+  //     fwrite(&QOI_OP_RGB, 1, 1, file);
+  //   } else {
+  //     fwrite(&QOI_OP_RGBA, 1, 1, file);
+  //   }
+  //   fwrite(pixels + pixelIndex++, 1, 1, file);
+  //   fwrite(pixels + pixelIndex++, 1, 1, file);
+  //   fwrite(pixels + pixelIndex++, 1, 1, file);
+  //   if (channels == 4) {
+  //     fwrite(pixels + pixelIndex++, 1, 1, file);
+  //   }
+  //   runningArray[arrIndex] = curr;
+  // }
+
+
   uint64_t endChunkBE = __builtin_bswap64(QOI_END_CHUNK);
   fwrite(&endChunkBE, 8, 1, file);
 
