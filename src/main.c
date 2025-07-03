@@ -200,54 +200,85 @@ void encode(const char* infile, const char* outfile) {
   fwrite(&channels, 1, 1, file);
   fwrite(&qoiHeader.colorspace, 1, 1, file);
 
-  // Super dumb encoder.
-  // Simply stores the rgb(a) values of each pixel
+  const int hasAlpha = channels == 4;
+  uint8_t runlength = 0;
   size_t pixelIndex = 0;
+  struct rgba prev = {0, 0, 0, 255};
+  struct rgba runningArray[64]; // Zero-initialized
   while (pixelIndex < totalValues) {
-    if (channels == 3) {
-      fwrite(&QOI_OP_RGB, 1, 1, file);
-    } else {
-      fwrite(&QOI_OP_RGBA, 1, 1, file);
-    }
-    fwrite(pixels + pixelIndex++, 1, 1, file);
-    fwrite(pixels + pixelIndex++, 1, 1, file);
-    fwrite(pixels + pixelIndex++, 1, 1, file);
-    if (channels == 4) {
-      fwrite(pixels + pixelIndex++, 1, 1, file);
-    }
-  }
-  
-  // Smarter encoder.
-  // struct rgba runningArray[64];
-  // struct rgba prev = {0, 0, 0, 255};
-  // size_t pixelIndex = 0;
-  // while (pixelIndex < totalValues) {
-  //   struct rgba curr = {*(pixels + pixelIndex++),
-  //     *(pixels + pixelIndex++),
-  //     *(pixels + pixelIndex++),
-  //     channels == 4 ? *(pixels + pixelIndex++) : 255
-  //   };
-  //   uint8_t arrIndex = getIndex(curr);
-  //   struct rgba arrPix = runningArray[arrIndex];
-  //   if (memcmp(&arrPix, &curr, sizeof(struct rgba)) == 0) {
-  //     arrIndex &= QOI_OP_INDEX;
-  //     fwrite(&arrIndex, 1, 1, file);
-  //     continue;
-  //   }
-  //   if (channels == 3) {
-  //     fwrite(&QOI_OP_RGB, 1, 1, file);
-  //   } else {
-  //     fwrite(&QOI_OP_RGBA, 1, 1, file);
-  //   }
-  //   fwrite(pixels + pixelIndex++, 1, 1, file);
-  //   fwrite(pixels + pixelIndex++, 1, 1, file);
-  //   fwrite(pixels + pixelIndex++, 1, 1, file);
-  //   if (channels == 4) {
-  //     fwrite(pixels + pixelIndex++, 1, 1, file);
-  //   }
-  //   runningArray[arrIndex] = curr;
-  // }
+    uint8_t r = *(pixels + pixelIndex++);
+    uint8_t g = *(pixels + pixelIndex++);
+    uint8_t b = *(pixels + pixelIndex++);
+    uint8_t a = hasAlpha ? *(pixels + pixelIndex++) : 255;
+    struct rgba curr = {r, g, b, a};
+    if (prev.r == curr.r && prev.g == curr.g && prev.b == curr.b && prev.a == curr.a) {
+      ++runlength;
+      // Max 62 runlength. 63 and 64 are reserved.
+      // Note that we use bias -1 so check against 62.
+      if (runlength == 62) {
+        runlength--;
+        runlength |= QOI_OP_RUN;
+        fwrite(&runlength, 1, 1, file);
+        // printf("Max run %02X\n", runlength);
+        runlength = 0;
+      }
 
+      // Edgecase, using default prev pixel at the start requires runningArray to be updated.
+      // This is due to alpha of default pixel being 255, not 0.
+      if (pixelIndex == (hasAlpha ? 4 : 3)) {
+        runningArray[getIndex(curr)] = curr;
+      }
+      continue;
+    }
+
+    // Save run that was stopped before max
+    if (runlength > 0) {
+      // Note that we use bias -1
+      runlength--;
+      runlength |= QOI_OP_RUN;
+      fwrite(&runlength, 1, 1, file);
+      runlength = 0;
+    }
+
+    uint8_t possibleIndex = getIndex(curr);
+    struct rgba possibleMatch = runningArray[possibleIndex];
+    if (possibleMatch.r == curr.r &&
+        possibleMatch.g == curr.g &&
+        possibleMatch.b == curr.b &&
+        possibleMatch.a == curr.a) {
+
+      possibleIndex |= QOI_OP_INDEX;
+      fwrite(&possibleIndex, 1, 1, file);
+      prev = curr;
+      continue;
+    }
+
+    if (hasAlpha && curr.a != prev.a) {
+      fwrite(&QOI_OP_RGBA, 1, 1, file);
+      fwrite(&curr.r, 1, 1, file);
+      fwrite(&curr.g, 1, 1, file);
+      fwrite(&curr.b, 1, 1, file);
+      fwrite(&curr.a, 1, 1, file);
+    } else {
+      fwrite(&QOI_OP_RGB, 1, 1, file);
+      fwrite(&curr.r, 1, 1, file);
+      fwrite(&curr.g, 1, 1, file);
+      fwrite(&curr.b, 1, 1, file);
+    }
+    runningArray[getIndex(curr)] = curr;
+    prev = curr;
+  }
+
+  // Save run if it was still ongoing
+  if (runlength > 0) {
+    // Note that we use bias -1
+    runlength--;
+    runlength |= QOI_OP_RUN;
+    fwrite(&runlength, 1, 1, file);
+    runlength = 0;
+  }
+
+  printf("Pixels %lu total %lu\n", pixelIndex, totalValues);
 
   uint64_t endChunkBE = __builtin_bswap64(QOI_END_CHUNK);
   fwrite(&endChunkBE, 8, 1, file);
