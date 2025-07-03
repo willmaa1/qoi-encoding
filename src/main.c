@@ -212,6 +212,7 @@ void encode(const char* infile, const char* outfile) {
     uint8_t a = hasAlpha ? *(pixels + pixelIndex++) : 255;
     struct rgba curr = {r, g, b, a};
     if (prev.r == curr.r && prev.g == curr.g && prev.b == curr.b && prev.a == curr.a) {
+      // RUN using previous pixel
       ++runlength;
       // Max 62 runlength. 63 and 64 are reserved.
       // Note that we use bias -1 so check against 62.
@@ -231,7 +232,7 @@ void encode(const char* infile, const char* outfile) {
       continue;
     }
 
-    // Save run that was stopped before max
+    // Save RUN that was stopped before max
     if (runlength > 0) {
       // Note that we use bias -1
       runlength--;
@@ -240,6 +241,7 @@ void encode(const char* infile, const char* outfile) {
       runlength = 0;
     }
 
+    // INDEX
     uint8_t possibleIndex = getIndex(curr);
     struct rgba possibleMatch = runningArray[possibleIndex];
     if (possibleMatch.r == curr.r &&
@@ -254,12 +256,18 @@ void encode(const char* infile, const char* outfile) {
     }
 
     if (hasAlpha && curr.a != prev.a) {
+      // Only way to change alpha (besides index) is RGBA
       fwrite(&QOI_OP_RGBA, 1, 1, file);
       fwrite(&curr.r, 1, 1, file);
       fwrite(&curr.g, 1, 1, file);
       fwrite(&curr.b, 1, 1, file);
       fwrite(&curr.a, 1, 1, file);
+    } else if (0) {
+      // TODO: QOI_OP_DIFF
+    } else if (0) {
+      // TODO: QOI_OP_LUMA
     } else {
+      // Use RGB if nothing else works
       fwrite(&QOI_OP_RGB, 1, 1, file);
       fwrite(&curr.r, 1, 1, file);
       fwrite(&curr.g, 1, 1, file);
@@ -269,7 +277,7 @@ void encode(const char* infile, const char* outfile) {
     prev = curr;
   }
 
-  // Save run if it was still ongoing
+  // Save RUN if it was still ongoing
   if (runlength > 0) {
     // Note that we use bias -1
     runlength--;
