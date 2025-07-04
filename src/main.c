@@ -274,14 +274,25 @@ void encode(const char* infile, const char* outfile) {
     uint8_t diffg2 = curr.g - prev.g + 2;
     uint8_t diffb2 = curr.b - prev.b + 2;
     if (diffr2 <= 3 && diffg2 <= 3 && diffb2 <= 3) {
-      // printf("%u %u %u - %u %u %u - %u %u %u\n", curr.r, prev.r, diffr2, curr.g, prev.g, diffg2, curr.b, prev.b, diffb2);
       uint8_t fullbyte = QOI_OP_DIFF | (diffr2 << 4) | (diffg2 << 2) | diffb2;
       fwrite(&fullbyte, 1, 1, file);
       prev = curr;
       continue;
     }
 
-    // TODO: QOI_OP_LUMA
+    // Take advantage or wrapping and bias for easy comparisons
+    uint8_t diffg3 = curr.g - prev.g;
+    uint8_t diffgg = curr.g - prev.g + 32;
+    uint8_t diffrg = curr.r - prev.r - diffg3 + 8;
+    uint8_t diffbg = curr.b - prev.b - diffg3 + 8;
+    if (diffgg <= 63 && diffrg <= 15 && diffbg <= 15) {
+      uint8_t fullbyte1 = QOI_OP_LUMA | diffgg;
+      uint8_t fullbyte2 = (diffrg << 4) | diffbg;
+      fwrite(&fullbyte1, 1, 1, file);
+      fwrite(&fullbyte2, 1, 1, file);
+      prev = curr;
+      continue;
+    }
 
     // Use RGB if nothing else works
     fwrite(&QOI_OP_RGB, 1, 1, file);
