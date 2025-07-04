@@ -255,6 +255,9 @@ void encode(const char* infile, const char* outfile) {
       continue;
     }
 
+    // Update pixel to runningArray
+    runningArray[getIndex(curr)] = curr;
+
     if (hasAlpha && curr.a != prev.a) {
       // Only way to change alpha (besides index) is RGBA
       fwrite(&QOI_OP_RGBA, 1, 1, file);
@@ -262,18 +265,29 @@ void encode(const char* infile, const char* outfile) {
       fwrite(&curr.g, 1, 1, file);
       fwrite(&curr.b, 1, 1, file);
       fwrite(&curr.a, 1, 1, file);
-    } else if (0) {
-      // TODO: QOI_OP_DIFF
-    } else if (0) {
-      // TODO: QOI_OP_LUMA
-    } else {
-      // Use RGB if nothing else works
-      fwrite(&QOI_OP_RGB, 1, 1, file);
-      fwrite(&curr.r, 1, 1, file);
-      fwrite(&curr.g, 1, 1, file);
-      fwrite(&curr.b, 1, 1, file);
+      prev = curr;
+      continue;
     }
-    runningArray[getIndex(curr)] = curr;
+    
+    // Take advantage or wrapping and bias for easy comparisons
+    uint8_t diffr2 = curr.r - prev.r + 2;
+    uint8_t diffg2 = curr.g - prev.g + 2;
+    uint8_t diffb2 = curr.b - prev.b + 2;
+    if (diffr2 <= 3 && diffg2 <= 3 && diffb2 <= 3) {
+      // printf("%u %u %u - %u %u %u - %u %u %u\n", curr.r, prev.r, diffr2, curr.g, prev.g, diffg2, curr.b, prev.b, diffb2);
+      uint8_t fullbyte = QOI_OP_DIFF | (diffr2 << 4) | (diffg2 << 2) | diffb2;
+      fwrite(&fullbyte, 1, 1, file);
+      prev = curr;
+      continue;
+    }
+
+    // TODO: QOI_OP_LUMA
+
+    // Use RGB if nothing else works
+    fwrite(&QOI_OP_RGB, 1, 1, file);
+    fwrite(&curr.r, 1, 1, file);
+    fwrite(&curr.g, 1, 1, file);
+    fwrite(&curr.b, 1, 1, file);
     prev = curr;
   }
 
