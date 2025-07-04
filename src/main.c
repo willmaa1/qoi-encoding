@@ -84,6 +84,7 @@ void decode(const char* infile, const char* outfile) {
       read += fread(&curr.r, 1, 1, file);
       read += fread(&curr.g, 1, 1, file);
       read += fread(&curr.b, 1, 1, file);
+      runningArray[getIndex(curr)] = curr;
       if (read != 3) {
         printf("QOI_OP_RGB read failed...\n");
         break;
@@ -94,6 +95,7 @@ void decode(const char* infile, const char* outfile) {
       read += fread(&curr.g, 1, 1, file);
       read += fread(&curr.b, 1, 1, file);
       read += fread(&curr.a, 1, 1, file);
+      runningArray[getIndex(curr)] = curr;
       if (read != 4) {
         printf("QOI_OP_RGBA read failed...\n");
         break;
@@ -107,6 +109,7 @@ void decode(const char* infile, const char* outfile) {
         curr.r += ((tagRest & 0b00110000) >> 4) - 2;
         curr.g += ((tagRest & 0b00001100) >> 2) - 2;
         curr.b += ((tagRest & 0b00000011) >> 0) - 2;
+        runningArray[getIndex(curr)] = curr;
       } else if (tag2 == QOI_OP_LUMA) {
         int8_t diffGreen = tagRest - 32;
         uint8_t diffOther;
@@ -121,6 +124,7 @@ void decode(const char* infile, const char* outfile) {
         curr.r += drdg + diffGreen;
         curr.b += dbdg + diffGreen;
 
+        runningArray[getIndex(curr)] = curr;
       } else if (tag2 == QOI_OP_RUN) {
         for (uint8_t i = 0; i < tagRest; i++) {
           imageData[pixelIndex++] = curr.r;
@@ -134,7 +138,6 @@ void decode(const char* infile, const char* outfile) {
       }
     }
 
-    runningArray[getIndex(curr)] = curr;
     prev = curr;
     imageData[pixelIndex++] = curr.r;
     imageData[pixelIndex++] = curr.g;
