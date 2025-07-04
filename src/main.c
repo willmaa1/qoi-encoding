@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../libs/stb_image.h"
@@ -62,10 +63,10 @@ void decode(const char* infile, const char* outfile) {
   qoiHeader.width = __builtin_bswap32(qoiHeader.width);
   qoiHeader.height = __builtin_bswap32(qoiHeader.height);
 
-  printf("QOI w:%u h:%u channels:%u color:%u\n", qoiHeader.width, qoiHeader.height, qoiHeader.channels, qoiHeader.colorspace);
+  // printf("QOI w:%u h:%u channels:%u color:%u\n", qoiHeader.width, qoiHeader.height, qoiHeader.channels, qoiHeader.colorspace);
 
   size_t totalValues = qoiHeader.height * qoiHeader.width * 4;
-  printf("Reserving %lu bytes for the image.\n", totalValues);
+  // printf("Reserving %lu bytes for the image.\n", totalValues);
   uint8_t* imageData = malloc(totalValues);
   if (imageData == NULL) {
     printf("Not enough memory for the image!\n");
@@ -190,7 +191,7 @@ void encode(const char* infile, const char* outfile) {
   struct qoi_header qoiHeader = {"qoif", width, height, channels, colorspace};
 
   size_t totalValues = ((size_t)qoiHeader.width) * qoiHeader.height * qoiHeader.channels;
-  printf("Width %u height %u channels %u (%lu).\n", qoiHeader.width, qoiHeader.height, channels, totalValues);
+  // printf("Width %u height %u channels %u (%lu).\n", qoiHeader.width, qoiHeader.height, channels, totalValues);
 
   uint32_t widthBE = __builtin_bswap32(qoiHeader.width);
   uint32_t heightBE = __builtin_bswap32(qoiHeader.height);
@@ -311,7 +312,7 @@ void encode(const char* infile, const char* outfile) {
     runlength = 0;
   }
 
-  printf("Pixels %lu total %lu\n", pixelIndex, totalValues);
+  // printf("Pixels %lu total %lu\n", pixelIndex, totalValues);
 
   uint64_t endChunkBE = __builtin_bswap64(QOI_END_CHUNK);
   fwrite(&endChunkBE, 8, 1, file);
@@ -331,9 +332,9 @@ int main(int argc, char** argv) {
   // decode("./original_qoi/testcard_rgba.qoi", "file.png");
   // decode("./original_qoi/testcard.qoi", "file.png");
   // decode("./original_qoi/wikipedia_008.qoi", "file.png");
-  
+
   // encode("./original_png/dice.png", "file.qoi");
-  encode("./original_png/edgecase.png", "file.qoi");
+  // encode("./original_png/edgecase.png", "file.qoi");
   // encode("./original_png/kodim10.png", "file.qoi");
   // encode("./original_png/kodim23.png", "file.qoi");
   // encode("./original_png/qoi_logo.png", "file.qoi");
@@ -341,7 +342,42 @@ int main(int argc, char** argv) {
   // encode("./original_png/testcard.png", "file.qoi");
   // encode("./original_png/wikipedia_008.png", "file.qoi");
 
-  decode("./file.qoi", "file.png");
+  // decode("./file.qoi", "file.png");
+
+  // Test encoding and decoding all the images
+  clock_t begin = clock();
+
+  encode("./original_png/dice.png", "./encoded/dice.qoi");
+  encode("./original_png/edgecase.png", "./encoded/edgecase.qoi");
+  encode("./original_png/kodim10.png", "./encoded/kodim10.qoi");
+  encode("./original_png/kodim23.png", "./encoded/kodim23.qoi");
+  encode("./original_png/qoi_logo.png", "./encoded/qoi_logo.qoi");
+  encode("./original_png/testcard_rgba.png", "./encoded/testcard_rgba.qoi");
+  encode("./original_png/testcard.png", "./encoded/testcard.qoi");
+  encode("./original_png/wikipedia_008.png", "./encoded/wikipedia_008.qoi");
+
+  clock_t mid = clock();
+
+  decode("./encoded/dice.qoi", "./decoded/dice.png");
+  decode("./encoded/edgecase.qoi", "./decoded/edgecase.png");
+  decode("./encoded/kodim10.qoi", "./decoded/kodim10.png");
+  decode("./encoded/kodim23.qoi", "./decoded/kodim23.png");
+  decode("./encoded/qoi_logo.qoi", "./decoded/qoi_logo.png");
+  decode("./encoded/testcard_rgba.qoi", "./decoded/testcard_rgba.png");
+  decode("./encoded/testcard.qoi", "./decoded/testcard.png");
+  decode("./encoded/wikipedia_008.qoi", "./decoded/wikipedia_008.png");
+
+  clock_t end = clock();
+  double time_spent_mid = (double)(mid - begin) / CLOCKS_PER_SEC;
+  double time_spent_end = (double)(end - mid) / CLOCKS_PER_SEC;
+  double time_spent_tot = time_spent_mid + time_spent_end;
+
+  // Encoding: >0.27s
+  // Decoding: >1.64s
+  // Total: >1.9s
+  printf("Encoding: %f sec.\n", time_spent_mid);
+  printf("Decoding: %f sec.\n", time_spent_end);
+  printf("Totaltim: %f sec.\n", time_spent_tot);
   printf("\n");
 
   return 0;
